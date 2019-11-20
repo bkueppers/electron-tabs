@@ -1,4 +1,4 @@
-const EventEmitter = require("events");
+var Buffer = window.electron.Buffer;
 
 if (!document) {
     throw Error("electron-tabs module must be called in renderer process");
@@ -26,9 +26,10 @@ if (!document) {
     document.getElementsByTagName("head")[0].appendChild(styleTag);
 })();
 
-class TabGroup extends EventEmitter {
+class TabGroup extends EventTarget {
+	
     constructor (args = {}) {
-        super();
+		super();
         let options = this.options = {
             tabContainerSelector: args.tabContainerSelector || ".etabs-tabs",
             buttonsContainerSelector: args.buttonsContainerSelector || ".etabs-buttons",
@@ -62,7 +63,7 @@ class TabGroup extends EventEmitter {
         if (args.active === true) {
             tab.activate();
         }
-        this.emit("tab-added", tab, this);
+        this.dispatchEvent(new CustomEvent("tab-added", tab));
         return tab;
     }
 
@@ -135,7 +136,7 @@ const TabGroupPrivate = {
             }
         }
         if (triggerEvent) {
-            this.emit("tab-removed", tab, this);
+			this.dispatchEvent(new CustomEvent("tab-removed", tab));
         }
         return this;
     },
@@ -143,7 +144,8 @@ const TabGroupPrivate = {
     setActiveTab: function (tab) {
         TabGroupPrivate.removeTab.bind(this)(tab);
         this.tabs.unshift(tab);
-        this.emit("tab-active", tab, this);
+		
+		this.dispatchEvent(new CustomEvent("tab-added", tab));
         return this;
     },
 
@@ -155,9 +157,9 @@ const TabGroupPrivate = {
     }
 };
 
-class Tab extends EventEmitter {
+class Tab extends EventTarget {
     constructor (tabGroup, id, args) {
-        super();
+		super();
         this.tabGroup = tabGroup;
         this.id = id;
         this.title = args.title;
@@ -184,7 +186,7 @@ class Tab extends EventEmitter {
         span.innerHTML = title;
         span.title = title;
         this.title = title;
-        this.emit("title-changed", title, this);
+		this.dispatchEvent(new CustomEvent("title-changed", { title }));
         return this;
     }
 
@@ -204,8 +206,7 @@ class Tab extends EventEmitter {
         } else {
             span.classList.add('hidden');
         }
-
-        this.emit("badge-changed", badge, this);
+		this.dispatchEvent(new CustomEvent("badge-changed", badge));
     }
 
     getBadge () {
@@ -220,10 +221,10 @@ class Tab extends EventEmitter {
         let span = this.tabElements.icon;
         if (iconURL) {
             span.innerHTML = `<img src="${iconURL}" />`;
-            this.emit("icon-changed", iconURL, this);
+			this.dispatchEvent(new CustomEvent("icon-changed", { iconURL }));
         } else if (icon) {
             span.innerHTML = `<i class="${icon}"></i>`;
-            this.emit("icon-changed", icon, this);
+			this.dispatchEvent(new CustomEvent("icon-changed", { iconURL }));
         }
 
         return this;
@@ -292,7 +293,7 @@ class Tab extends EventEmitter {
         this.tab.classList.add("active");
         this.webview.classList.add("visible");
         this.webview.focus();
-        this.emit("active", this);
+		this.dispatchEvent(new CustomEvent("active", this));
         return this;
     }
 
@@ -300,10 +301,10 @@ class Tab extends EventEmitter {
         if (this.isClosed) return;
         if (flag !== false) {
             this.tab.classList.add("visible");
-            this.emit("visible", this);
+			this.dispatchEvent(new CustomEvent("visible", this));
         } else {
             this.tab.classList.remove("visible");
-            this.emit("hidden", this);
+			this.dispatchEvent(new CustomEvent("hidden", this));
         }
         return this;
     }
@@ -316,10 +317,10 @@ class Tab extends EventEmitter {
         if (this.isClosed) return;
         if (flag !== false) {
             this.tab.classList.add("flash");
-            this.emit("flash", this);
+			this.dispatchEvent(new CustomEvent("flash", this));
         } else {
             this.tab.classList.remove("flash");
-            this.emit("unflash", this);
+			this.dispatchEvent(new CustomEvent("unflash", this));
         }
         return this;
     }
@@ -327,9 +328,17 @@ class Tab extends EventEmitter {
     unflash () {
         return this.flash(false);
     }
+	
+	on (e, fn) {
+		this.addEventListener(e, fn);
+	}
+	
+	emit (e, o) {
+		this.dispatchEvent(new CustomEvent(e, o));
+	}
 
     close (force) {
-        this.emit("closing", this);
+		this.dispatchEvent(new CustomEvent("closing", this));
         if (this.isClosed || (!this.closable && !force)) return;
         this.isClosed = true;
         let tabGroup = this.tabGroup;
@@ -337,7 +346,7 @@ class Tab extends EventEmitter {
         tabGroup.viewContainer.removeChild(this.webview);
         let activeTab = this.tabGroup.getActiveTab();
         TabGroupPrivate.removeTab.bind(tabGroup)(this, true);
-        this.emit("close", this);
+        this.eve.initEvent("close", this);
 
         if (activeTab.id === this.id) {
             TabGroupPrivate.activateRecentTab.bind(tabGroup)();
@@ -402,7 +411,7 @@ const TabPrivate = {
         this.webview = document.createElement("webview");
 
         const tabWebviewDidFinishLoadHandler = function (e) {
-            this.emit("webview-ready", this);
+			this.dispatchEvent(new CustomEvent("webview-ready", this));
         };
 
         this.webview.addEventListener("did-finish-load", tabWebviewDidFinishLoadHandler.bind(this), false);
@@ -419,5 +428,4 @@ const TabPrivate = {
     }
 };
 
-module.exports = TabGroup;
-
+window.TabGroup = TabGroup;
